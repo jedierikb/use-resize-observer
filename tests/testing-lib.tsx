@@ -1,5 +1,5 @@
 // Tests written with react testing library
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, RefObject } from "react";
 import useResizeObserver from "../";
 import { render, cleanup, RenderResult } from "@testing-library/react";
 import { ObservedSize } from "./utils";
@@ -23,15 +23,18 @@ type TestProps = {
   resolveController: (controller: ComponentController) => void;
 };
 
-const Test = ({ onResize, resolveController }: TestProps) => {
+const Test = ({ onResize, resolveController, nullRef }: TestProps) => {
   const [, setRenderTrigger] = useState(false);
-  const [useExplicitRef, setUseExplicitRef] = useState(false);
-  const explicitRef = useRef<HTMLDivElement>(null);
+  const [explicitRef, setUseExplicitRef] = useState<RefObject<
+    HTMLElement
+  > | null>(null);
+  // const explicitRef = useRef<HTMLDivElement>(null);
   const { ref, width = 0, height = 0 } = useResizeObserver<HTMLDivElement>({
     // We intentionally create a new function instance here if onResize is given.
     // The hook is supposed to handle it and not recreate ResizeObserver instances on each render for example.
     onResize: onResize ? (size: ObservedSize) => onResize(size) : undefined,
-    ...(useExplicitRef ? { ref: explicitRef } : {}),
+    ...(nullRef ? { ref: null } : {}),
+    ...(explicitRef ? { ref: explicitRef } : {}),
   });
   const controllerStateRef = useRef<{ renderCount: number } & ObservedSize>({
     renderCount: 0,
@@ -57,11 +60,12 @@ const Test = ({ onResize, resolveController }: TestProps) => {
       getWidth: () => controllerStateRef.current.width,
       getHeight: () => controllerStateRef.current.height,
       triggerRender: () => setRenderTrigger((value) => !value),
-      switchToExplicitRef: () => setUseExplicitRef(true),
+      switchToExplicitRef: (ref: RefObject<HTMLElement>) =>
+        setUseExplicitRef(ref),
     });
   }, []);
 
-  return <div ref={useExplicitRef ? explicitRef : ref}></div>;
+  return <div ref={explicitRef ? explicitRef : ref} />;
 };
 
 const awaitNextFrame = () =>
@@ -75,7 +79,7 @@ const renderTest = (
       <Test
         {...props}
         resolveController={(controller) => resolve([controller, tools])}
-      ></Test>
+      />
     );
   });
 
@@ -164,6 +168,33 @@ describe("Testing Lib: Resize Observer Instance Counting Block", () => {
   });
 
   it("should not reinstantiate if the hook is the same but the observed element changes", async () => {
+    const ModifiedTest = ({
+      resolveController: doResolveController,
+      ...props
+    }) => {
+      const explicitRef = useRef<HTMLDivElement>(null);
+
+      const resolveController = (controller) => {
+        doResolveController({
+          ...controller,
+          switchToExplicitRef: () => {
+            controller.switchToExplicitRef(explicitRef);
+          },
+        });
+      };
+
+      return <Test {...props} resolveController={resolveController} />;
+    };
+
+    const renderTest = (): Promise<[ComponentController, RenderResult]> =>
+      new Promise((resolve) => {
+        const tools = render(
+          <ModifiedTest
+            resolveController={(controller) => resolve([controller, tools])}
+          />
+        );
+      });
+
     const [controller] = await renderTest();
 
     // Default behaviour on initial mount with the explicit ref
@@ -184,5 +215,46 @@ describe("Testing Lib: Resize Observer Instance Counting Block", () => {
     expect(resizeObserverInstanceCount).toBe(1);
     expect(resizeObserverObserveCount).toBe(2);
     expect(resizeObserverUnobserveCount).toBe(1);
+  });
+
+  it("should not create a ResizeObserver instance when ref is null, only once it's set", async () => {
+    // todo fix TS typing issues
+    const ModifiedTest = ({
+      resolveController: doResolveController,
+      ...props
+    }) => {
+      const explicitRef = useRef<HTMLDivElement>(null);
+
+      const resolveController = (controller) => {
+        doResolveController({
+          ...controller,
+          switchToExplicitRef: () => {
+            controller.switchToExplicitRef(explicitRef);
+          },
+        });
+      };
+
+      return <Test {...props} resolveController={resolveController} />;
+    };
+
+    const renderTest = (): Promise<[ComponentController, RenderResult]> =>
+      new Promise((resolve) => {
+        const tools = render(
+          <ModifiedTest
+            nullRef={true}
+            resolveController={(controller) => resolve([controller, tools])}
+          />
+        );
+      });
+
+    const [controller] = await renderTest();
+
+    // Default behaviour on initial mount with the explicit ref
+    expect(resizeObserverInstanceCount).toBe(0);
+    controller.switchToExplicitRef();
+    await awaitNextFrame();
+    // await delay(1000);
+    expect(resizeObserverInstanceCount).toBe(1);
+    // todo check measured size as well
   });
 });

@@ -25,12 +25,23 @@ function useResizeObserver<T extends HTMLElement>(opts?: {
   onResize?: ResizeHandler;
 }): { ref: RefObject<T> } & ObservedSize;
 
+// Type definition when the hook just passes through the user provided ref.
+function useResizeObserver<T extends HTMLElement>(opts?: {
+  ref: null;
+  onResize?: ResizeHandler;
+}): { ref: null } & ObservedSize;
+
+function useResizeObserver<T extends HTMLElement>(opts?: {
+  ref: RefObject<T> | null;
+  onResize?: ResizeHandler;
+}): { ref: RefObject<T> | null } & ObservedSize;
+
 function useResizeObserver<T>(
   opts: {
-    ref?: RefObject<T>;
+    ref?: RefObject<T> | null;
     onResize?: ResizeHandler;
   } = {}
-): { ref: RefObject<T> } & ObservedSize {
+): { ref: RefObject<T> | null } & ObservedSize {
   // `defaultRef` Has to be non-conditionally declared here whether or not it'll
   // be used as that's how hooks work.
   // @see https://reactjs.org/docs/hooks-rules.html#explanation
@@ -43,12 +54,12 @@ function useResizeObserver<T>(
   const onResizeRef = useRef<ResizeHandler | undefined>(undefined);
   onResizeRef.current = onResize;
 
-  // Using a single instance throughought the hook's lifetime
+  // Using a single instance throughout the hook's lifetime
   const resizeObserverRef = useRef<ResizeObserver>() as MutableRefObject<
     ResizeObserver
   >;
 
-  const ref = opts.ref || defaultRef;
+  const ref = !opts.ref && opts.ref !== null ? defaultRef : opts.ref;
   const [size, setSize] = useState<{
     width?: number;
     height?: number;
@@ -69,7 +80,7 @@ function useResizeObserver<T>(
   });
 
   useEffect(() => {
-    if (resizeObserverRef.current) {
+    if (!(ref?.current instanceof Element) || resizeObserverRef.current) {
       return;
     }
 
@@ -103,14 +114,10 @@ function useResizeObserver<T>(
         }
       }
     });
-  }, []);
+  }, [ref]);
 
   useEffect(() => {
-    if (
-      typeof ref !== "object" ||
-      ref === null ||
-      !(ref.current instanceof Element)
-    ) {
+    if (!(ref?.current instanceof Element) || !resizeObserverRef.current) {
       return;
     }
 

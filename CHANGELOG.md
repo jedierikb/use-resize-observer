@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 7.0.0
+
+- Passing in `null` as the ref will no longer provide a fallback ref, but rather
+  make the hook opt out of observing entirely, not even instantiating a
+  ResizeObserver instance.
+  This is useful if you want to opt out of observing, but later want to opt in
+  with a different ref, and you also want to delay RO instantiation.
+
 ## 6.1.0
 
 - No changes, only publishing the next minor.
