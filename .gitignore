@@ -4,6 +4,5 @@ node_modules
 .vscode
 yarn.lock
 yarn-error.log*
-dist
 /polyfilled.js
 /polyfilled.d.ts
