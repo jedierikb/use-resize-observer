@@ -86,9 +86,10 @@ function useResizeObserver<T>(
 
       const entry = entries[0];
 
+      // jedierikb says, 'that is not quite right'
       // `Math.round` is in line with how CSS resolves sub-pixel values
-      const newWidth = Math.round(entry.contentRect.width);
-      const newHeight = Math.round(entry.contentRect.height);
+      const newWidth = entry.contentRect.width;
+      const newHeight = entry.contentRect.height;
       if (
         previous.current.width !== newWidth ||
         previous.current.height !== newHeight
